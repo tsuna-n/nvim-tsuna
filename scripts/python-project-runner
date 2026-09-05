@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+install_only=false
+if [[ ${1-} == --install-only ]]; then
+  install_only=true
+  shift
+fi
+
+if (( $# < 1 )) || [[ $install_only == false && $# -lt 2 ]]; then
+  printf 'usage: %s [--install-only] PROJECT_ROOT [PYTHON_FILE [ARGS...]]\n' "$0" >&2
+  exit 2
+fi
+
+project_root=$1
+shift
+
+python_file=
+if [[ $install_only == false ]]; then
+  python_file=$1
+  shift
+fi
+
+system_python=/usr/bin/python3
+venv_dir=$project_root/.venv
+venv_python=$venv_dir/bin/python
+fingerprint_file=$venv_dir/.nvim-requirements.sha256
+
+mapfile -d '' requirement_files < <(
+  find "$project_root" \
+    -type d \( \
+      -name .git -o \
+      -name .venv -o \
+      -name venv -o \
+      -name node_modules -o \
+      -name .ipynb_checkpoints -o \
+      -name __pycache__ -o \
+      -name .pytest_cache -o \
+      -name .mypy_cache -o \
+      -name .ruff_cache -o \
+      -name .tox -o \
+      -name .nox -o \
+      -name build -o \
+      -name dist \
+    \) -prune -o \
+    -type f -iname 'req*.txt' -print0 | sort -z
+)
+
+if (( ${#requirement_files[@]} > 0 )); then
+  mkdir -p "$venv_dir"
+  exec 9>"$venv_dir/.nvim-requirements.lock"
+  flock 9
+
+  if [[ ! -x $venv_python ]]; then
+    printf '[python-runner] Creating %s\n' "$venv_dir"
+    "$system_python" -m venv "$venv_dir"
+  fi
+
+  requirements_hash=$(sha256sum -- "${requirement_files[@]}" | sha256sum | cut -d ' ' -f 1)
+  cached_hash=
+  if [[ -f $fingerprint_file ]]; then
+    IFS= read -r cached_hash < "$fingerprint_file" || true
+  fi
+
+  if [[ $requirements_hash != "$cached_hash" ]]; then
+    printf '[python-runner] Installing dependencies from %d requirement file(s):\n' "${#requirement_files[@]}"
+    printf '  %s\n' "${requirement_files[@]}"
+
+    pip_args=()
+    for requirement_file in "${requirement_files[@]}"; do
+      pip_args+=(--requirement "$requirement_file")
+    done
+
+    PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_INPUT=1 \
+      "$venv_python" -m pip install "${pip_args[@]}"
+    printf '%s\n' "$requirements_hash" > "$fingerprint_file"
+    printf '[python-tools] Dependencies installed successfully.\n'
+  else
+    printf '[python-tools] Dependencies are already up to date (%d requirement file(s)).\n' \
+      "${#requirement_files[@]}"
+  fi
+elif [[ $install_only == true ]]; then
+  printf '[python-tools] No req*.txt files found under %s\n' "$project_root"
+fi
+
+if [[ $install_only == true ]]; then
+  exit 0
+fi
+
+python=$system_python
+if [[ -x $venv_python ]]; then
+  python=$venv_python
+fi
+
+exec "$python" -u "$python_file" "$@"
