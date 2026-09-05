@@ -2,53 +2,43 @@
 
 set -Eeuo pipefail
 
-readonly REPO_URL="${NVIM_REPO_URL:-https://github.com/tsuna-n/nvim-tsuna.git}"
-readonly BRANCH="${NVIM_REPO_BRANCH:-main}"
+readonly SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME:?HOME is not set}/.config}"
 readonly TARGET="${CONFIG_HOME}/nvim"
 
-stage=""
-backup=""
+readonly CONFIG_ITEMS=(
+  .neoconf.json
+  colors
+  init.lua
+  lazy-lock.json
+  lazyvim.json
+  lua
+  scripts
+  stylua.toml
+)
 
-cleanup() {
-  local status=$?
+if [[ "${SOURCE_DIR}" == "${TARGET}" ]]; then
+  printf 'This repository is already the active Neovim config: %s\n' "${TARGET}"
+  exit 0
+fi
 
-  if [[ -n "${stage}" && -d "${stage}" ]]; then
-    rm -rf -- "${stage}"
+mkdir -p -- "${TARGET}"
+
+for item in "${CONFIG_ITEMS[@]}"; do
+  source_item="${SOURCE_DIR}/${item}"
+  target_item="${TARGET}/${item}"
+
+  if [[ -d "${source_item}" ]]; then
+    mkdir -p -- "${target_item}"
+    cp -a -- "${source_item}/." "${target_item}/"
+  elif [[ -f "${source_item}" ]]; then
+    cp -a -- "${source_item}" "${target_item}"
+  else
+    printf 'Warning: skipping missing item %s\n' "${item}" >&2
+    continue
   fi
 
-  if ((status != 0)) && [[ -n "${backup}" ]] && [[ ! -e "${TARGET}" && ! -L "${TARGET}" ]]; then
-    mv -- "${backup}" "${TARGET}"
-    printf 'Installation failed; restored %s\n' "${TARGET}" >&2
-  fi
+  printf 'Installed %s\n' "${item}"
+done
 
-  exit "${status}"
-}
-
-trap cleanup EXIT
-
-if ! command -v git >/dev/null 2>&1; then
-  printf 'Error: git is required.\n' >&2
-  exit 1
-fi
-
-mkdir -p -- "${CONFIG_HOME}"
-stage="$(mktemp -d "${CONFIG_HOME}/.nvim-install.XXXXXX")"
-
-printf 'Downloading %s (%s)...\n' "${REPO_URL}" "${BRANCH}"
-git clone --quiet --branch "${BRANCH}" --single-branch "${REPO_URL}" "${stage}"
-
-if [[ -e "${TARGET}" || -L "${TARGET}" ]]; then
-  backup="${TARGET}.backup-$(date +%Y%m%d-%H%M%S)-$$"
-  printf 'Moving existing config to %s\n' "${backup}"
-  mv -- "${TARGET}" "${backup}"
-fi
-
-mv -- "${stage}" "${TARGET}"
-stage=""
-trap - EXIT
-
-printf 'Neovim config installed at %s\n' "${TARGET}"
-if [[ -n "${backup}" ]]; then
-  printf 'Previous config kept at %s\n' "${backup}"
-fi
+printf 'Neovim config updated at %s\n' "${TARGET}"

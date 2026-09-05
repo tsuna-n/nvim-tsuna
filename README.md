@@ -13,11 +13,11 @@ cd nvim-tsuna
 ./install.sh
 ```
 
-The installer downloads the latest `main` branch into
-`${XDG_CONFIG_HOME:-$HOME/.config}/nvim`. If a Neovim configuration already
-exists, it is moved to a timestamped backup before the new configuration takes
-its place. The installed directory remains a Git checkout connected to this
-repository.
+The cloned repository is kept separate from the active configuration. The
+installer copies only the Neovim configuration files into
+`${XDG_CONFIG_HOME:-$HOME/.config}/nvim`, overwriting matching files while
+leaving unrelated files in place. Repository-only files such as `.git`,
+`README.md`, `LICENSE`, and `install.sh` are not copied.
 
 ## Start here
 
