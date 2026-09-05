@@ -5,6 +5,20 @@ Rust, C/C++, JSON, YAML, Docker, Lua, shell, and common web formats. It includes
 LSP completion, format-on-save, linting, project search/replace, Git hunk tools,
 tests, and debugging with automatic project-local adapter discovery.
 
+## Install
+
+```sh
+git clone https://github.com/tsuna-n/nvim-tsuna.git
+cd nvim-tsuna
+./install.sh
+```
+
+The installer downloads the latest `main` branch into
+`${XDG_CONFIG_HOME:-$HOME/.config}/nvim`. If a Neovim configuration already
+exists, it is moved to a timestamped backup before the new configuration takes
+its place. The installed directory remains a Git checkout connected to this
+repository.
+
 ## Start here
 
 - `Ctrl+P` find a file
